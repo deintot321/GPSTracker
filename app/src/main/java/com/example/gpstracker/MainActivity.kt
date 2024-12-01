@@ -1,8 +1,6 @@
 package com.example.gpstracker
 
 import android.Manifest
-import android.content.ContentUris
-import android.content.ContentValues
 import android.content.Context
 import android.content.pm.PackageManager
 import android.graphics.Bitmap
@@ -14,13 +12,11 @@ import android.location.LocationListener
 import android.location.LocationManager
 import android.os.Bundle
 import android.os.Environment
-import android.provider.MediaStore
 import android.util.Log
 import android.widget.ImageView
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.layout.add
 import androidx.compose.material3.Button
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
@@ -37,11 +33,7 @@ import java.util.*
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
-import kotlin.text.forEach
-import kotlin.text.isNotEmpty
-import kotlin.text.maxOf
-import kotlin.text.minOf
-import kotlin.text.toFloat
+import java.io.FileWriter
 
 class MainActivity : ComponentActivity() {
     private lateinit var locationManager: LocationManager
@@ -138,7 +130,6 @@ class MainActivity : ComponentActivity() {
             }
         }
 
-        loadGpsDataFromCsv()
 
         if (gpsData.isNotEmpty()) {
             minX = gpsData.minOf { it.longitude.toFloat() }
@@ -153,8 +144,19 @@ class MainActivity : ComponentActivity() {
 
     override fun onDestroy() {
         super.onDestroy()
+        Log.d("Lifecycle", "onDestroy called")
         locationManager.removeUpdates(locationListener)
+    }
+
+    override fun onPause() {
+        super.onPause()
+        Log.d("Lifecycle", "onPause called")
         saveGpsDataToCsv()
+    }
+
+    override fun onResume() {
+        super.onResume()
+        loadGpsDataFromCsv()
     }
 
     private fun startLocationUpdates() {
@@ -236,67 +238,42 @@ class MainActivity : ComponentActivity() {
     }
 
     private fun saveGpsDataToCsv() {
-        val contentValues = ContentValues().apply {
-            put(MediaStore.MediaColumns.DISPLAY_NAME, "gps_data.csv")
-            put(MediaStore.MediaColumns.MIME_TYPE, "text/csv")
-            put(MediaStore.MediaColumns.RELATIVE_PATH, Environment.DIRECTORY_DOCUMENTS)
+        Log.d("GPS Tracking", "Saving GPS data to CSV")
+        val csvWriter: FileWriter
+        val downloadDir = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS)
+        val file = File(downloadDir, "gps_data.txt")
+        csvWriter = FileWriter(file)
+        csvWriter.append("time, long, lat, alt\n")
+        for (data in gpsData) {
+            Log.d("GPS Tracking", "Saving data: ${data.timestamp}, ${data.longitude}, ${data.latitude}, ${data.altitude}")
+            csvWriter.append("${data.timestamp}, ${data.longitude}, ${data.latitude}, ${data.altitude}\n")
         }
-
-        val resolver = contentResolver
-        val uri = resolver.insert(MediaStore.Files.getContentUri("external"), contentValues)
-
-        uri?.let { fileUri ->
-            resolver.openOutputStream(fileUri)?.use { outputStream ->
-                outputStream.writer().use { writer ->
-                    writer.write("Uhrzeit,Längengrad,Breitengrad,Höhe\n")
-                    gpsData.forEach { data ->
-                        writer.write("${data.timestamp},${data.longitude},${data.latitude},${data.altitude}\n")
-                    }
-                }
-                Log.d("GPS Tracking", "GPS data saved to: $fileUri")
-            }
-        } ?: Log.e("GPS Tracking", "Error saving GPS data to CSV")
+        csvWriter.flush()
+        csvWriter.close()
+        Log.d("GPS Tracking", "Saved GPS data to ${file.absolutePath}")
     }
 
     fun loadGpsDataFromCsv() {
-        val collection = MediaStore.Files.getContentUri("external")
-        val projection = arrayOf(
-            MediaStore.Files.FileColumns._ID,
-            MediaStore.Files.FileColumns.DISPLAY_NAME
-        )
-        val selection = "${MediaStore.Files.FileColumns.DISPLAY_NAME} = ?"
-        val selectionArgs = arrayOf("gps_data.csv")
-        val sortOrder = "${MediaStore.Files.FileColumns.DATE_ADDED} DESC"
-
-        val query = contentResolver.query(collection, projection, selection, selectionArgs, sortOrder)
-
-        query?.use { cursor ->
-            val idColumn = cursor.getColumnIndexOrThrow(MediaStore.Files.FileColumns._ID)
-            val nameColumn = cursor.getColumnIndexOrThrow(MediaStore.Files.FileColumns.DISPLAY_NAME)
-
-            if (cursor.moveToFirst()) {
-                val id = cursor.getLong(idColumn)
-                val name = cursor.getString(nameColumn)
-                val contentUri = ContentUris.withAppendedId(MediaStore.Files.getContentUri("external"), id)
-
-                contentResolver.openInputStream(contentUri)?.use { inputStream ->
-                    inputStream.bufferedReader().useLines { lines ->
-                        lines.drop(1).forEach { line -> // Überspringe die Kopfzeile
-                            val parts = line.split(",")
-                            if (parts.size == 4) {
-                                val timestamp = parts[0]
-                                val longitude = parts[1].toDoubleOrNull() ?: 0.0
-                                val latitude = parts[2].toDoubleOrNull() ?: 0.0
-                                val altitude = parts[3].toDoubleOrNull() ?: 0.0
-
-                                gpsData.add(GpsData(timestamp, longitude, latitude, altitude))
-                            }
-                        }
-                    }
-                    Log.d("GPS Tracking", "GPS data loaded from: $contentUri")
-                }
+        val downloadDir = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS)
+        val file = File(downloadDir, "gps_data.txt")
+        if (!file.exists()) {
+            Log.e("GPS Tracking", "CSV file does not exist")
+            return
+        }
+        Log.d("GPS Tracking", "Loading CSV data from ${file.absolutePath}")
+        val lines = file.readLines()
+        gpsData.clear()
+        Log.d("GPS Tracking", "Loaded ${lines.size} lines from CSV")
+        for (line in lines.subList(1, lines.size)) {
+            val parts = line.split(",")
+            if (parts.size == 4) {
+                val timestamp = parts[0]
+                val longitude = parts[1].toDouble()
+                val latitude = parts[2].toDouble()
+                val altitude = parts[3].toDouble()
+                gpsData.add(GpsData(timestamp, longitude, latitude, altitude))
             }
-        } ?: Log.e("GPS Tracking", "Error loading GPS data from CSV")
+        }
 
         // Min/Max-Werte aktualisieren und isDataLoaded setzen
         if (gpsData.isNotEmpty()) {
