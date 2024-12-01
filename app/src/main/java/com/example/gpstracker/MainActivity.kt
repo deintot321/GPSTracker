@@ -189,6 +189,11 @@ class MainActivity : ComponentActivity() {
                 minY = minOf(minY, y)
                 maxY = maxOf(maxY, y)
             }
+        } else {
+            minX = minOf(minX, x)
+            maxX = maxOf(maxX, x)
+            minY = minOf(minY, y)
+            maxY = maxOf(maxY, y)
         }
 
         val timestamp = SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.getDefault()).format(Date())
