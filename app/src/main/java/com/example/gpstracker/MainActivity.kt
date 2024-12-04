@@ -152,6 +152,7 @@ class MainActivity : ComponentActivity() {
         super.onPause()
         Log.d("Lifecycle", "onPause called")
         saveGpsDataToCsv()
+        saveTogpx()
     }
 
     override fun onResume() {
@@ -196,7 +197,7 @@ class MainActivity : ComponentActivity() {
             maxY = maxOf(maxY, y)
         }
 
-        val timestamp = SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.getDefault()).format(Date())
+        val timestamp = SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss'Z'", Locale.getDefault()).format(Date())
         gpsData.add(GpsData(timestamp, location.longitude, location.latitude, location.altitude))
 
         redrawCanvas(bitmap.width.toFloat(), bitmap.height.toFloat())
@@ -315,6 +316,39 @@ class MainActivity : ComponentActivity() {
 
     companion object {
         private const val REQUEST_LOCATION_PERMISSION = 1
+    }
+
+    private fun saveTogpx() {
+        Log.d("GPX", "Saving GPS data to CSV")
+        val csvWriter: FileWriter
+        val downloadDir = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS)
+        val file = File(downloadDir, "gps_data.gpx")
+        csvWriter = FileWriter(file)
+        csvWriter.append("<?xml version=\"1.0\" encoding=\"UTF-8\" standalone=\"no\" ?>\n")
+        csvWriter.append("<gpx version=\"1.1\" creator=\"skill issue\">\n")
+        csvWriter.append("<name>Trackname1</name>\n")
+        csvWriter.append("<desc>Trackbeschreibung</desc>\n")
+        csvWriter.append("</trk>\n")
+        csvWriter.append("<trkseg>\n")
+        // <trkpt lat="52.520000" lon="13.380000">
+        // <ele>36.0</ele>
+        // <time>2011-01-13T01:01:01Z</time>
+        // </trkpt>
+
+        for (data in gpsData) {
+            csvWriter.append("<trkpt lat=\"${data.latitude}\" lon=\"${data.longitude}\">\n")
+            csvWriter.append("<ele>${data.altitude}</ele>\n")
+            csvWriter.append("<time>${data.timestamp}</time>\n")
+            csvWriter.append("</trkpt>\n")
+        }
+
+        csvWriter.append("</trkseg>\n")
+        csvWriter.append("</trk>\n")
+        csvWriter.append("</gpx>\n")
+
+        csvWriter.flush()
+        csvWriter.close()
+        Log.d("GPX", "Saved GPS data to ${file.absolutePath}")
     }
 }
 
