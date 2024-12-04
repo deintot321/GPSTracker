@@ -328,7 +328,7 @@ class MainActivity : ComponentActivity() {
         csvWriter.append("<gpx version=\"1.1\" creator=\"skill issue\">\n")
         csvWriter.append("<name>Trackname1</name>\n")
         csvWriter.append("<desc>Trackbeschreibung</desc>\n")
-        csvWriter.append("</trk>\n")
+        csvWriter.append("<trk>\n")
         csvWriter.append("<trkseg>\n")
         // <trkpt lat="52.520000" lon="13.380000">
         // <ele>36.0</ele>
