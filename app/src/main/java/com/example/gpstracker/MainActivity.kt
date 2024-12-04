@@ -27,6 +27,8 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
+import com.example.gpstracker.jcoord.LatLng
+import com.example.gpstracker.jcoord.UTMRef
 import java.io.File
 import java.text.SimpleDateFormat
 import java.util.*
@@ -206,6 +208,8 @@ class MainActivity : ComponentActivity() {
     private fun redrawCanvas(canvasWidth: Float, canvasHeight: Float) {
         canvas.drawColor(Color.WHITE)
 
+        drawUTMGrid(canvas, canvasWidth, canvasHeight)
+
         val width = canvasWidth // Verwende canvasWidth statt bitmap.width
         val height = canvasHeight // Verwende canvasHeight statt bitmap.height
         val padding = 50f
@@ -316,6 +320,70 @@ class MainActivity : ComponentActivity() {
 
     companion object {
         private const val REQUEST_LOCATION_PERMISSION = 1
+    }
+
+    fun convertGpsToUtm(location: Location) {
+        // Konvertierung von GPS in UTM
+        Log.d("UTM", "Convert Latitude/Longitude to UTM Reference")
+        val ll4: LatLng = LatLng(location.latitude, location.longitude)
+        val utm2: UTMRef = ll4.toUTMRef()
+        Log.d("UTM", "UTM Reference: $utm2")
+    }
+
+    private fun drawUTMGrid(canvas: Canvas, width: Float, height: Float) {
+        val gridPaint = Paint().apply {
+            color = Color.LTGRAY
+            strokeWidth = 2f
+            style = Paint.Style.STROKE
+        }
+        
+        // Convert corner points to UTM
+        val topLeft = LatLng(maxY.toDouble(), minX.toDouble()).toUTMRef()
+        val bottomRight = LatLng(minY.toDouble(), maxX.toDouble()).toUTMRef()
+        
+        // Calculate UTM grid intervals (5x5 grid)
+        val eastingInterval = (bottomRight.getEasting() - topLeft.getEasting()) / 5
+        val northingInterval = (topLeft.getNorthing() - bottomRight.getNorthing()) / 5
+        
+        // Draw vertical lines (meridians)
+        for (i in 0..5) {
+            val easting = topLeft.getEasting() + (i * eastingInterval)
+            val startY = 0f
+            val endY = height
+            val x = (easting - topLeft.getEasting()) * width / (bottomRight.getEasting() - topLeft.getEasting())
+            canvas.drawLine(x.toFloat(), startY, x.toFloat(), endY, gridPaint)
+            
+            // Draw easting value
+            canvas.drawText(
+                "${easting.toInt()}m E", 
+                x.toFloat(), 
+                height - 10f, 
+                Paint().apply {
+                    color = Color.DKGRAY
+                    textSize = 30f
+                }
+            )
+        }
+        
+        // Draw horizontal lines (parallels)
+        for (i in 0..5) {
+            val northing = topLeft.getNorthing() - (i * northingInterval)
+            val startX = 0f
+            val endX = width
+            val y = (topLeft.getNorthing() - northing) * height / (topLeft.getNorthing() - bottomRight.getNorthing())
+            canvas.drawLine(startX, y.toFloat(), endX, y.toFloat(), gridPaint)
+            
+            // Draw northing value
+            canvas.drawText(
+                "${northing.toInt()}m N", 
+                10f, 
+                y.toFloat(), 
+                Paint().apply {
+                    color = Color.DKGRAY
+                    textSize = 30f
+                }
+            )
+        }
     }
 
     private fun saveTogpx() {
